@@ -1,0 +1,10 @@
+name = "ProbLineSearch"
+uuid = "759f1ef8-3a81-11e9-0887-bdd0726e5bdf"
+authors = ["Alex Bird <abird@turing.ac.uk>"]
+version = "0.1.0"
+
+[deps]
+ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
+Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
