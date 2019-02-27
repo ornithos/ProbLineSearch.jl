@@ -15,7 +15,7 @@ mutable struct PLSPosterior{T <: AbstractFloat}
 end
 
 # Constructor
-function PLSPosterior(Ts::Vector{T}, Y::Vector{T}, ∇Y::Vector{T}, σ²_f::T, σ²_∇::T; ζ=10) where T <: AbstractFloat
+function PLSPosterior(Ts::Vector{T}, Y::Vector{T}, ∇Y::Vector{T}, σ²_f::T, σ²_∇::T) where T <: AbstractFloat
 
     N = length(Ts)
 
@@ -39,9 +39,9 @@ end
 #= Integrated Wiener Process Kernel functions (function and derivative)
 ------------------------------------------------------------------------=#
 # kernel:
-k(a,b)   = min(a + ζ,b + ζ)^3/3 + 0.5 * abs(a-b) * min(a + ζ,b + ζ)^2;
-kd(a,b)  = (a<b) * ((a + ζ)^2/2) + (a>=b) * ((a + ζ)*(b + ζ) - 0.5 * (b + ζ)^2);
-dk(a,b)  = (a>b) * ((b+ζ)^2/2) + (a<=b) .* ((a+ζ)*(b+ζ) - 0.5 .* (a+ζ).^2);
+k(a,b)   = min(a + ζ,b + ζ)^3/3 + abs(a-b) * min(a + ζ,b + ζ)^2/2;
+kd(a,b)  = (a<b) * ((a + ζ)^2/2) + (a>=b) * ((a + ζ)*(b + ζ) - (b + ζ)^2/2);
+dk(a,b)  = (a>b) * ((b+ζ)^2/2) + (a<=b) .* ((a+ζ)*(b+ζ) - (a+ζ).^2/2);
 dkd(a,b) = min(a+ζ,b+ζ);
 
 # further derivatives
@@ -72,6 +72,17 @@ Vd0df(Post::PLSPosterior, t) = dkd(0,t) - ([dk(0, Ts')  dkd(0, Ts')] * (Post.G \
 
 
 # Update
-update!(x::PLSPosterior, T, Y, ∇Y, σ²_f, σ²_∇) = error("Not implemented yet.")
+function update!(x::PLSPosterior, t, y, ∇y, σ²_f, σ²_∇)
+    # Currently this just rebuilds from scratch -- my belief is that
+    # this is sufficiently fast, especially the 2-dimensional broadcast on the
+    # kernel matrix constructions that there is no need to utilise intermediate
+    # results. However, it's an obvious place to look for optimisation if reqd,
+    # esp. if you increase the evaluation limit.
+    N = length(x) + 1
+    Ts, Y, ∇Y = vcat(x.Ts, t), vcat(x.Y, y), vcat(x.∇Y, ∇y)
+    σ²_f, σ²_∇ = (σ²_f + (N-1) * x.σ²_f)/N, (σ²_∇ + (N-1) * σ²_∇)/N
+    return PLSPosterior(Ts, Y, ∇Y, σ²_f, σ²_∇)
+end
 
 Base.length(x::PLSPosterior) = length(x.T)
+Base.eltype(x::PLSPosterior{T}) = T

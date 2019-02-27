@@ -88,7 +88,7 @@ function bvnu(dh::T, dk::T, r::T)::T where T <: AbstractFloat
 # TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-    # deal with easy cases first (if one or other limit is ∞ or indpdt)
+    # deal with easy cases first (if one or other limit is ∞ or ⟂)
     (dh == Inf || dk == Inf) && return 0
     (dh == -Inf) && return (dk == -Inf) ? 1 : gaussCDF(-dk);
     (dk == -Inf) && return gaussCDF(-dh);
