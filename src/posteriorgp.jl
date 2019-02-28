@@ -4,6 +4,9 @@ Summary of posterior over (f, f′) given current evaluations. The posterior
 takes the form of a GP, which can be queried using methods #TODO, and stores
 the evaluations so far.
 """
+
+const ζ = 10     # numerical stability in kernel function (any positive const is ok)
+
 mutable struct PLSPosterior{T <: AbstractFloat}
     Ts::Vector{T}
     Y::Vector{T}
@@ -86,3 +89,10 @@ end
 
 Base.length(x::PLSPosterior) = length(x.T)
 Base.eltype(x::PLSPosterior{T}) = T
+
+min_mean(x::PLSPosterior) = min_mean(x, x.Ts)
+function min_mean(x::PLSPosterior{T}, Ts::Vector{T}) where T <: AbstractFloat
+    M  = m(x, Ts)
+    minj = argmin(M)
+    return M, Ts[minj], minj
+end

@@ -1,7 +1,21 @@
 include("./bvn.jl")
 
+
+function gaussPDF(z::T)::T where T <: AbstractFloat
+    pdf(Normal(zero(T), one(T)), z)
+end
+
+# Expected improvement:
+# m = mean, s = std dev, η = current best
+function EI(m,s,η)
+    return (η - m) .* gaussCDF((η-m)./s) + s .* gaussPDF((η-m)./s);
+end
+
 # probability for Wolfe conditions to be fulfilled
-function probWolfe(Post::PLSPosterior, t, c1, c2)
+probWolfe(Post::PLSPosterior, t, c1, c2) = probWolfe_(Post::PLSPosterior, t, c1, c2)[1]
+
+# probWolfe AND breakdown thereof
+function probWolfe_(Post::PLSPosterior, t, c1, c2)
 
     T = eltype(Post)
 
@@ -41,17 +55,15 @@ end
 
 
 
-
-
-function cubicMinimum(ts)
+function cubicMinimum(Post::PLSPosterior{T}, t::T) where T <: AbstractFloat
     # mean belief at ts is a cubic function. It is defined up to a constant by
-    d1mt = d1m(ts);
-    d2mt = d2m(ts);
-    d3mt = d3m(ts);
+    d1mt = d1m(Post, t);
+    d2mt = d2m(Post, t);
+    d3mt = d3m(Post, t);
 
-    a = 0.5 * d3mt;
-    b = d2mt - ts * d3mt;
-    c = d1mt - d2mt * ts + 0.5 * d3mt * ts^2;
+    a = d3mt / 2;
+    b = d2mt - t * d3mt;
+    c = d1mt - d2mt * t + 2 \ d3mt * t^2;
 
     if abs(d3mt) < 1e-9 # essentially a quadratic. Single extremum
         return - (d1mt - ts * d2mt) / d2mt;
@@ -62,14 +74,14 @@ function cubicMinimum(ts)
     if detmnt < 0 # no roots
         return convert(T, Inf);
     end
-    LR = (-b - sign(a) * sqrt(detmnt)) ./ (2*a);  # left root
-    RR = (-b + sign(a) * sqrt(detmnt)) ./ (2*a);  # right root
+    LR = (-b - sign(a) * sqrt(detmnt)) / (2*a);  # left root
+    RR = (-b + sign(a) * sqrt(detmnt)) / (2*a);  # right root
 
     # and the two values of the cubic at those points (up to constant)
     Ldt = LR - ts; # delta t for left root
     Rdt = RR - ts; # delta t for right root
-    LCV = d1mt * Ldt + 0.5 * d2mt * Ldt.^2 + 6 \ d3mt * Ldt.^3; # left cubic value
-    RCV = d1mt * Rdt + 0.5 * d2mt * Rdt.^2 + 6 \ d3mt * Rdt.^3; # right cubic value
+    LCV = d1mt * Ldt + 2 \ d2mt * Ldt.^2 + 6 \ d3mt * Ldt.^3; # left cubic value
+    RCV = d1mt * Rdt + 2 \ d2mt * Rdt.^2 + 6 \ d3mt * Rdt.^3; # right cubic value
 
     return (LCV < RCV) ? LR : RR
 end
