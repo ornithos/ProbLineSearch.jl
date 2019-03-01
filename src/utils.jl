@@ -12,12 +12,10 @@ function EI(m,s,η)
 end
 
 # probability for Wolfe conditions to be fulfilled
-probWolfe(Post::PLSPosterior, t, c1, c2) = probWolfe_(Post::PLSPosterior, t, c1, c2)[1]
+probWolfe(Post::PLSPosterior{T}, t::T, c1::T, c2::T) where T <: AbstractFloat = probWolfe_(Post::PLSPosterior, t, c1, c2)[1]
 
 # probWolfe AND breakdown thereof
-function probWolfe_(Post::PLSPosterior, t, c1, c2)
-
-    T = eltype(Post)
+function probWolfe_(Post::PLSPosterior{T}, t::T, c1::T, c2::T)  where T <: AbstractFloat
 
     # marginal for Armijo condition
     dm0  = d1m(Post, 0)  # 1st deriv. of mean at t=0
@@ -34,13 +32,13 @@ function probWolfe_(Post::PLSPosterior, t, c1, c2)
     Vab = -c2 * (Vd0 + c1 * t * dVd0) + V0df(Post, t) + c2 * Vd0f(Post, t) + c1 * t * Vd0df(Post, t) - Vd(Post, t);
 
     if (Vaa < 1e-9) && (Vbb < 1e-9) # ≈ deterministic evaluations, returns to standard Wolfe conditions.
-        return (ma >= 0) .* (mb >= 0), zT(T, 3)
+        return (ma >= 0) .* (mb >= 0), zeros(T, 3)
     end
 
     # joint probability
     rho = Vab / sqrt(Vaa * Vbb);
     if Vaa <= 0 || Vbb <= 0
-        return 0, zT(eltype(Post), 3)
+        return 0, zeros(T, 3)
     end
     upper = (2 * c2 * (abs(dm0)+2*sqrt(dVd0))-mb)./sqrt(Vbb);
     p = bvn(-ma / sqrt(Vaa), convert(T, Inf), -mb / sqrt(Vbb), upper, rho);
@@ -78,10 +76,13 @@ function cubicMinimum(Post::PLSPosterior{T}, t::T) where T <: AbstractFloat
     RR = (-b + sign(a) * sqrt(detmnt)) / (2*a);  # right root
 
     # and the two values of the cubic at those points (up to constant)
-    Ldt = LR - ts; # delta t for left root
-    Rdt = RR - ts; # delta t for right root
+    Ldt = LR - t; # delta t for left root
+    Rdt = RR - t; # delta t for right root
     LCV = d1mt * Ldt + 2 \ d2mt * Ldt.^2 + 6 \ d3mt * Ldt.^3; # left cubic value
     RCV = d1mt * Rdt + 2 \ d2mt * Rdt.^2 + 6 \ d3mt * Rdt.^3; # right cubic value
 
     return (LCV < RCV) ? LR : RR
 end
+
+
+@inline arr2sc(x::AbstractArray) = begin; @argcheck length(x)==1; x[1]; end

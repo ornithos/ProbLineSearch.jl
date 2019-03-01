@@ -1,6 +1,6 @@
 using PyPlot
 using PyCall
-@pyimport matplotlib.colors as matcolors
+matcolors = pyimport("matplotlib.colors")
 
 mpg = [0,0.4717,0.4604]; # color [0,125,122]
 dre = [0.4906,0,0]; # color [130,0,0]
@@ -24,7 +24,7 @@ end
 
 
 function makePlot(x::PLSEvaluation{T}, post::PLSPosterior{T}, searchpars::PLSSearchDefn{T},
-        pars::PLSConstantParams, state::PLSTermination{T}; Tcand=nothing, Mcand=nothing) where T <: AbstractFloat
+        pars::PLSConstantParams; Tcand=nothing, Mcand=nothing) where T <: AbstractFloat
 
     @unpack Ts, Y, ∇Y = post
     @unpack wolfeThresh = pars
@@ -37,11 +37,11 @@ function makePlot(x::PLSEvaluation{T}, post::PLSPosterior{T}, searchpars::PLSSea
         xmax = maximum(vcat(Ts, x.t))+0.5;
 
         # plot evaluation points
-        plot(Ts, Y, 'o', c=blu)
+        plot(Ts, Y, "o", c=blu)
         for i = 1:N
-           plot(Ts[i] + 0.1*[-1,1], Y[i] + 0.1*∇Y[i] * [-1,1], '-', c=blu);
+           plot(Ts[i] + 0.1*[-1,1], Y[i] + 0.1*∇Y[i] * [-1,1], "-", c=blu);
         end
-        plot(x.t, m(x.t),'o', c=dre, markerfacecolor=dre);
+        plot(x.t, m(x.t),"o", c=dre, markerfacecolor=dre);
 
         xlim([xmin,xmax]);
         ylim([ymin,ymax]);
@@ -54,7 +54,7 @@ function makePlot(x::PLSEvaluation{T}, post::PLSPosterior{T}, searchpars::PLSSea
         # ----------- PLOT 1 ----------------------
         fig, axs = subplot(3, 2);
         ax = axs[1]
-        ax[:title]('belief over function');
+        ax[:title]("belief over function");
 
         ymin = min(Y) - 1.5*(max(Y)-min(Y));
         ymax = max(Y) + 1.5*(max(Y)-min(Y));
@@ -83,47 +83,47 @@ function makePlot(x::PLSEvaluation{T}, post::PLSPosterior{T}, searchpars::PLSSea
         P = _GaussDensity(yp,mp,Vp+1e-4);
 
         imshow(tp, yp, P, cmap=ora2white);
-        plot(ts, ms, '-', c=ora);
-        plot(ts, ms + 2*sqrt.(max.(Vs,0)), '-', c=lightora);
-        plot(ts, ms - 2*sqrt.(max.(Vs,0)), '-', c=lightora);
+        plot(ts, ms, "-", c=ora);
+        plot(ts, ms + 2*sqrt.(max.(Vs,0)), "-", c=lightora);
+        plot(ts, ms - 2*sqrt.(max.(Vs,0)), "-", c=lightora);
 
         # plot evaluation points
-        ax[:plot](Ts, Y,'o',c=blu)
+        ax[:plot](Ts, Y,"o",c=blu)
         for i = 1:N
-           ax[:plot](Ts[i] + 0.1*[-1,1], Y[i] + 0.1*∇Y[i] * [-1,1], '-', c=blu);
+           ax[:plot](Ts[i] + 0.1*[-1,1], Y[i] + 0.1*∇Y[i] * [-1,1], "-", c=blu);
         end
-        ax[:plot](x.t, m(post, x.t), 'o', c=dre, markerfacecolor=dre);
-        ax[:plot]([x.t, x.t],[ymin,ymax],'-',c=dre);
+        ax[:plot](x.t, m(post, x.t), "o", c=dre, markerfacecolor=dre);
+        ax[:plot]([x.t, x.t],[ymin,ymax],"-",c=dre);
 
-        doCands && ax[:plot](Tcand, Mcand, 'o', c=gra);
+        doCands && ax[:plot](Tcand, Mcand, "o", c=gra);
 
         ax[:xlim]([xmin, xmax]);
         ax[:ylim]([ymin, ymax]);
 
         # ----------- PLOT 2 ----------------------
         ax = axs[2]
-        ax[:title]('belief over Wolfe conditions');
-        ax[:plot](ts,PP,'-','Color',dre);
-        ax[:plot](ts,Pab(:,1),'--','Color',dre);
-        ax[:plot](ts,Pab(:,2),'-.','Color',dre);
-        ax[:plot](ts,0.5 + 0.5*Pab(:,3),':','Color',dre);
+        ax[:title]("belief over Wolfe conditions");
+        ax[:plot](ts,PP, "-", c=dre);
+        ax[:plot](ts,Pab(:,1),"--", c=dre);
+        ax[:plot](ts,Pab(:,2),"-.", c=dre);
+        ax[:plot](ts,0.5 + 0.5*Pab(:,3),":", c=dre);
 
-        ax[:plot](ts, 0*ts + wolfeThresh, '-', c=gra)
+        ax[:plot](ts, 0*ts + wolfeThresh, "-", c=gra)
         for i = 1:N
-            ax[:plot]([Ts[i],Ts[i]],[0,1],'-', c=blu);
+            ax[:plot]([Ts[i],Ts[i]],[0,1],"-", c=blu);
         end
-        ax[:plot]([x.t, x.t],[0,1],'-',c=dre);
+        ax[:plot]([x.t, x.t],[0,1],"-",c=dre);
         ax[:ylim]([0,1]);
         ax[:xlim]([xmin,xmax])
 
         # ----------- PLOT 3 ----------------------
         ax = axs[3]
-        ax[:title]('Expected Improvement')
+        ax[:title]("Expected Improvement")
 
         eta = min(Y);
         Ss  = sqrt(Vs + post.σ²_f);
-        ax[:plot](ts, EI.(ms,Ss,eta),'-', c=mpg);
-        ax[:plot](ts, EI.(ms,Ss,eta) .* PP,'--', c=blu);
+        ax[:plot](ts, EI.(ms,Ss,eta),"-", c=mpg);
+        ax[:plot](ts, EI.(ms,Ss,eta) .* PP,"--", c=blu);
 
         doCands && [ax[:axvline](tt, c=gra) for tt in Tcand]
 
@@ -132,7 +132,7 @@ function makePlot(x::PLSEvaluation{T}, post::PLSPosterior{T}, searchpars::PLSSea
 
         # ----------- PLOT 4 ----------------------
         ax = axs[4]
-        ax[:title]('beliefs over derivatives')
+        ax[:title]("beliefs over derivatives")
         # rhoD = zeros(Ns,1);
         #
         # V0s   = zeros(Ns,1);
@@ -163,25 +163,25 @@ function makePlot(x::PLSEvaluation{T}, post::PLSPosterior{T}, searchpars::PLSSea
         #     Vbb(i)   = c2^2 * dVd0 - 2 * c2 * Vd0df(ts(i)) + dVd(ts(i));
         #     Vab(i)   = -c2 * (Vd0 + c1 * ts(i) * dVd0) + (1+c2) * Vd0f(ts(i)) + c1 * ts(i) * Vd0df(ts(i)) - Vd(ts(i));
         # end
-        # plot(ts,dms,'-','Color',ora);
-        # plot(ts,dms+2*sqrt.(Vms),'-','Color',lightora);
-        # plot(ts,dms-2*sqrt.(Vms),'-','Color',lightora);
-        # plot(T,dY_projected,'o','Color',blu);
+        # plot(ts,dms,"-",'Color',ora);
+        # plot(ts,dms+2*sqrt.(Vms),"-",'Color',lightora);
+        # plot(ts,dms-2*sqrt.(Vms),"-",'Color',lightora);
+        # plot(T,dY_projected,"o",'Color',blu);
         #
         # xlim([xmin,xmax]);
 
         # ----------- PLOT 5 ----------------------
         ax = axs[5]
-        ax[:title]('covariances')
-        ax[:plot](ts,rhoD,'-', c=ora);
-        ax[:plot](ts,V0s,'-', c=mpg);
-        ax[:plot](ts,Vd0s,'-.', c=mpg);
-        ax[:plot](ts,V0ds,'--', c=mpg);
-        ax[:plot](ts,Vd0ds,':', c=mpg);
-        ax[:plot](ts,-1+0*ts, '-k');
-        ax[:plot](ts,1+0*ts, '-k');
+        ax[:title]("covariances")
+        ax[:plot](ts,rhoD,"-", c=ora);
+        ax[:plot](ts,V0s,"-", c=mpg);
+        ax[:plot](ts,Vd0s,"-.", c=mpg);
+        ax[:plot](ts,V0ds,"--", c=mpg);
+        ax[:plot](ts,Vd0ds,":", c=mpg);
+        ax[:plot](ts,-1+0*ts, "-k");
+        ax[:plot](ts,1+0*ts, "-k");
 
-        ax[:xlabel]('t');
+        ax[:xlabel]("t");
         ax[:legend](L"\rho_{f\partial}(t)", L"\rho_{f_0f}(t)",
             L"\rho_{\partial_0f}(t)\rho_{f_0\partial}(t)", L"\rho_{\partial_0\partial}(t)")
 
@@ -189,14 +189,14 @@ function makePlot(x::PLSEvaluation{T}, post::PLSPosterior{T}, searchpars::PLSSea
 
         # ----------- PLOT 6 ----------------------
         ax = axs[6]
-        ax[:title]('Wolfe terms')
-        ax[:plot](ts,ma,'-',c=mpg);
-        ax[:plot](ts,mb,'-',c=dre);
-        ax[:plot](ts,ma+2*sqrt.(Vaa),'-', c=lightmpg);
-        ax[:plot](ts,ma-2*sqrt.(Vaa),'-', c=lightmpg);
-        ax[:plot](ts,mb+2*sqrt.(Vbb),'-', c=lightdre);
-        ax[:plot](ts,mb-2*sqrt.(Vbb),'-', c=lightdre);
-        ax[:plot](ts,sqrt.(abs.(Vab)),':', c=blu);
+        ax[:title]("Wolfe terms")
+        ax[:plot](ts,ma,"-",c=mpg);
+        ax[:plot](ts,mb,"-",c=dre);
+        ax[:plot](ts,ma+2*sqrt.(Vaa),"-", c=lightmpg);
+        ax[:plot](ts,ma-2*sqrt.(Vaa),"-", c=lightmpg);
+        ax[:plot](ts,mb+2*sqrt.(Vbb),"-", c=lightdre);
+        ax[:plot](ts,mb-2*sqrt.(Vbb),"-", c=lightdre);
+        ax[:plot](ts,sqrt.(abs.(Vab)),":", c=blu);
 
         ax[:xlim]([xmin,xmax]);
     end

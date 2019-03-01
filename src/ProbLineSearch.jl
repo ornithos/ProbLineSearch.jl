@@ -1,8 +1,8 @@
 module ProbLineSearch
 
-using Flux, LinearAlgebra
+using LinearAlgebra
 using Distributions
-using ArgCheck, Parameters
+using ArgCheck, Parameters, Formatting
 
 # Original code (MATLAB) license:
 #
@@ -35,14 +35,24 @@ using ArgCheck, Parameters
 
 """
 Statistics of accepted step sizes and number of func evals
+example usage: PLSHistory(Float32, 10)
 """
-mutable struct PLSTermination{T<: AbstractFloat}
-    evals::Vector{T2} where T2 <: Int       # number of functions evals
-    EI::T                  # Expected Improvement at acceptance
-    Wolfe::T               # Wolfe probability at acceptance
-    reason::String         # Description of acceptance reason
+# TODO: mv PLSHistory => PLSStatistics, make
+# TODO: cat PLSHistory = {all_evals, all_EI, all_wolfe, all_messages}
+@with_kw mutable struct PLSHistory{T <: AbstractFloat}
+    evals::Vector{Int} = []       # number of functions evals
+    recording::Bool = false            # number of outer iterations so far.
+    αs::Vector{T} = []                 # accepted αs
+    ewma_α::T = 1.0                    # (exp. wgt) moving average of α (across outer loops)
+    EI::Vector{T} = []                 # Expected Improvement at acceptance
+    Wolfe::Vector{T} = []              # Wolfe probability at acceptance
+    msg::Vector{String} = []   # Description of acceptance reason
 end
-PLSTermination(T::Type, N::Int) = PLSTermination(fill(convert(T, NaN), N), fill(convert(T, NaN), N), 0, 0, "")
+PLSHistory(T::Type) = PLSHistory{T}()
+PLSHistory() = PLSHistory(Float64)
+
+Base.length(x::PLSHistory) = length(x.evals)
+increment_eval!(x::PLSHistory) = x.recording ? x.evals[end] += 1 : (push!(x.evals, 1); x.recording=true);
 
 
 """
@@ -55,10 +65,9 @@ but are available here just in case.
     c2::T = 0.5   # grad at accepted point must be above this pct of ∇₀
     niter::Int = 7
     wolfeThresh::T = 0.3   # ≥ this prob reqd, for Wolfe conditions to hold
-    ewma_α::T              # (exp. wgt) moving average of α (across outer loops)
     αGrowth::T = 1.3       # amount to grow α₀ at each outer iteration.
 end
-
+PLSConstantParams(T::Type) = PLSConstantParams{T}()
 
 
 """
@@ -69,32 +78,19 @@ Definition of the line search: the starting point, the direction etc.
     α₀::T
     search_direction::Vector{T}
     extrap_amt::T = 1      # extrapolation amount
-    m::T = 0               # magnitude |y′(0)| => Divisor for normalisation
+    denom::T = 1               # magnitude |y′(0)| => Divisor for normalisation
     f₀::T = 0
 end
+PLSSearchDefn(T::Type, x₀, α₀, search_direction) = PLSSearchDefn{T}(x₀=x₀, α₀=α₀, search_direction=search_direction)
+PLSSearchDefn(x₀, α₀, search_direction) = PLSSearchDefn(Float64, x₀, α₀, search_direction)
 
 
-"""
-Output of a function evaluation.
-"""
-struct PLSEvaluation{T <: AbstractFloat}
-    t::T       # evaluated `t`
-    x::T       # corr. x(t)
-    y::T       # corr. y(t)
-    ∇y::T      # corr. y′(t)
-    σ²_f::T    # estimated var of f
-    σ²_∇::T    # estimate var of f′
-    J::Vector{T}    # Jacobian at t
-    σ²_J::Vector{T} # Variance of Jacobian at t
-end
-
-Base.eltype(x::PLSEvaluation{T}) = T
 
 
-include("./main.jl")
 include("./fun.jl")
 include("./posteriorgp.jl")
 include("./utils.jl")
-include("./plot.jl")
+# include("./plot.jl")
+include("./main.jl")
 
 end # module
