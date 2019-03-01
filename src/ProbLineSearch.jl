@@ -75,14 +75,14 @@ Definition of the line search: the starting point, the direction etc.
 """
 @with_kw mutable struct PLSSearchDefn{T<:AbstractFloat}
     x₀::Vector{T}
+    f₀::T
     α₀::T
     search_direction::Vector{T}
     extrap_amt::T = 1      # extrapolation amount
     denom::T = 1               # magnitude |y′(0)| => Divisor for normalisation
-    f₀::T = 0
 end
-PLSSearchDefn(T::Type, x₀, α₀, search_direction) = PLSSearchDefn{T}(x₀=x₀, α₀=α₀, search_direction=search_direction)
-PLSSearchDefn(x₀, α₀, search_direction) = PLSSearchDefn(Float64, x₀, α₀, search_direction)
+PLSSearchDefn(T::Type, x₀, y₀, α₀, search_direction) = PLSSearchDefn{T}(x₀=x₀, f₀=y₀, α₀=α₀, search_direction=search_direction)
+PLSSearchDefn(x₀, y₀, α₀, search_direction) = PLSSearchDefn(Float64, x₀, y₀, α₀, search_direction)
 
 
 

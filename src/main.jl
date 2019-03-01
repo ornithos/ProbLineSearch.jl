@@ -1,9 +1,16 @@
-function probLineSearch(func::AbstractPLSFunction, search::PLSSearchDefn, pars::PLSConstantParams)
-    x0 = evaluate(func, 0, search)
-    history = PLSHistory(eltype(x0), pars.niter)
+
+function probLineSearch(func::AbstractPLSFunction, x₀::Vector{T},
+        search_direction::Vector{T}, α₀::T; pars::PLSConstantParams{T}=PLSConstantParams(T)) where T <: AbstractFloat
+
+    search = PLSSearchDefn(T, x₀, T(0), α₀, search_direction)
+    x0 = evaluate(func, T(0), search, normalise=false)
+
+    history = PLSHistory(T)
     history.recording = true
     push!(history.evals, 1)
-    probLineSearch(func, x0, search, pars, history=history)
+
+    x, gp = probLineSearch(func, x0, search, pars=pars, history=history)
+    return x, gp, search
 end
 
 
@@ -17,6 +24,8 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
     norm∇_0    = norm(x0.∇y)
     if !isapprox(norm∇_0, 1.0)
         search.denom = norm∇_0   # magnitude for rescaling: |y′(0)|
+        search.x₀ = x0.x
+        search.f₀ = x0.y         # offset for rescaling: y(0)
         normalise_for_linesearch!(x0, search)
     else
         !isapprox(search.denom, 1.0) && (@warn "Perhaps x0 has been pre-normalised; and norm factor in searchpars≈1.0. This may cause problems.")
@@ -99,12 +108,12 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
            elseif cell==1 && d1m(gp, 0) > 0
                display("bark4")
                 push!(history.msg, "function seems very steep, reevaluating close to start.")
-                tt = 0.01 * (Tsort[cell] + Tsort[cell+1]);
-                x = evaluate(func, tt, search, history=history)
+                # tt = 0.01 * (Tsort[cell] + Tsort[cell+1]);  => Can lead to oscillation if T[1] is too far away.
+                x = iterates[1]
                 finalise(x, gp, search, pars, history)
                 search.α₀ /= 10
-                search.ewma_α /= 5
-                return x  # done
+                history.ewma_α /= 5
+                return x, gp  # done
             end
         end
 
@@ -197,7 +206,7 @@ function finalise(x::PLSEvaluation{T}, post::PLSPosterior{T}, searchpars::PLSSea
     # reset NEXT initial step size to average step size if accepted step
     # size is 100 times smaller or larger than average step size
     if (searchpars.α₀ > 1e2 * history.ewma_α)||(searchpars.α₀ < 1e-2 * history.ewma_α)
-        (verbosity > 0) && println("v large/small value of α, resetting alpha0")
+        (verbosity > 0) && println("v large/small value of α, resetting alpha0. To avoid cycling, ensure passing PLSHistory object through.")
         searchpars.α₀ = history.ewma_α # reset step size
     end
 

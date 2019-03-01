@@ -23,8 +23,14 @@ function normalise_for_linesearch!(x::PLSEvaluation{T}, searchpars::PLSSearchDef
     x_m = norm(x.∇y)
     isapprox(x_m, 1.0) && return   # assume already been done elsewhere
     @unpack α₀, f₀, denom = searchpars
+
+    # TODO: THIS FEELS WRONG TO ME. WHY NORMALISE *Y* BY α? SURELY THIS IS JUST
+    #=       A TRANSFORMATION FOR X, TO NORMALISE RANGE TO [0,1]? BY NORMALISING
+    #       BY α, THIS DRAMATICALLY CHANGES the EMISSION NOISE. OF COURSE IF
+    #       x <-- x/α, then ∇y <-- ∇y / α, but *[NOT y <-- y/α]*
+    =#
     y, ∇y = normalise_for_linesearch(x.y, x.∇y, f₀, denom, α₀)
-    σ²_f, σ²_∇ = normalise_for_linesearch(x.σ²_f, x.σ²_∇, f₀, denom^2, α₀^2)
+    σ²_f, σ²_∇ = normalise_for_linesearch(x.σ²_f, x.σ²_∇, T(0), denom^2, α₀)
     x.y, x.∇y = y, ∇y
     x.σ²_f, x.σ²_∇ = σ²_f, σ²_∇
 end
@@ -34,7 +40,7 @@ function invert_normalise_for_linesearch!(x::PLSEvaluation{T}, searchpars::PLSSe
     isapprox(x_m, searchpars.denom) && begin; @warn "invert_normalise not necessary"; return; end
     @unpack α₀, f₀, denom = searchpars
     y, ∇y = invert_normalise_for_linesearch(x.y, x.∇y, f₀, denom, α₀)
-    σ²_f, σ²_∇ = invert_normalise_for_linesearch(x.σ²_f, x.σ²_∇, f₀, denom^2, α₀^2)
+    σ²_f, σ²_∇ = invert_normalise_for_linesearch(x.σ²_f, x.σ²_∇, T(0), denom^2, α₀^2)
     x.y, x.∇y = y, ∇y
     x.σ²_f, x.σ²_∇ = σ²_f, σ²_∇
 end
@@ -76,6 +82,10 @@ function evaluate(f::PLSBespokeFunction, t::T, searchpars::PLSSearchDefn{T};
     return x
 end
 
+function (f::PLSBespokeFunction)(x; gradient=false)
+    y, J, σ²_y, σ²_J = f.f(x, f.pars)
+    return gradient ? (y, J) : y
+end
 
 function Base.show(io::IO, x::PLSEvaluation)
     println(io, "ProbLineSearch evaluation:")
