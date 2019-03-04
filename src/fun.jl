@@ -14,6 +14,7 @@ mutable struct PLSEvaluation{T <: AbstractFloat}
 end
 
 Base.eltype(x::PLSEvaluation{T}) where T <: AbstractFloat = T
+Base.copy(x::PLSEvaluation) = PLSEvaluation([deepcopy(getfield(x, nm)) for nm in fieldnames(PLSEvaluation)]...)
 
 
 @inline normalise_for_linesearch(f, ∇f, f₀, norm∇_0, α₀) = (f - f₀)/(α₀*norm∇_0),  ∇f/norm∇_0
@@ -24,11 +25,6 @@ function normalise_for_linesearch!(x::PLSEvaluation{T}, searchpars::PLSSearchDef
     isapprox(x_m, 1.0) && return   # assume already been done elsewhere
     @unpack α₀, f₀, denom = searchpars
 
-    # TODO: THIS FEELS WRONG TO ME. WHY NORMALISE *Y* BY α? SURELY THIS IS JUST
-    #=       A TRANSFORMATION FOR X, TO NORMALISE RANGE TO [0,1]? BY NORMALISING
-    #       BY α, THIS DRAMATICALLY CHANGES the EMISSION NOISE. OF COURSE IF
-    #       x <-- x/α, then ∇y <-- ∇y / α, but *[NOT y <-- y/α]*
-    =#
     y, ∇y = normalise_for_linesearch(x.y, x.∇y, f₀, denom, α₀)
     σ²_f, σ²_∇ = normalise_for_linesearch(x.σ²_f, x.σ²_∇, T(0), denom^2, α₀^2)
     x.y, x.∇y = y, ∇y
@@ -44,6 +40,14 @@ function invert_normalise_for_linesearch!(x::PLSEvaluation{T}, searchpars::PLSSe
     x.y, x.∇y = y, ∇y
     x.σ²_f, x.σ²_∇ = σ²_f, σ²_∇
 end
+
+
+function normalised_fun_var(searchpars::PLSSearchDefn{T}) where T <: AbstractFloat
+    @unpack α₀, f₀, denom, σ²_f = searchpars
+    σ²_∇ = var∇1d(searchpars)
+    normalise_for_linesearch(σ²_f, σ²_∇, T(0), denom^2, α₀^2)
+end
+
 
 """
 `AbstractPLSFunction`
@@ -77,20 +81,40 @@ PLSBespokeFunction(f::Function) = PLSBespokeFunction(f, Dict())
 function evaluate(f::PLSBespokeFunction, t::T, searchpars::PLSSearchDefn{T};
         history::Union{PLSHistory{T}, Nothing}=nothing, normalise::Bool=true) where T <:AbstractFloat
     @unpack x₀ ,α₀, search_direction = searchpars
-    @unpack f, pars = f
     query = x₀ + α₀*t*search_direction
-    ft, J, σ²_f, σ²_J = f(query; pars...)
-    # Project onto 1D line (search direction), and renormalise.
-    ∇f, σ²_∇ = search_direction' * J, (search_direction.^2)' * σ²_J  # project
-    x = PLSEvaluation{T}(t, query, ft, ∇f, σ²_f, σ²_∇, J, σ²_J)
+    x = evaluate(f, query, history=history)
+    x.t = t
+    project_1d!(x, search_direction)
     normalise && normalise_for_linesearch!(x, searchpars)
+    return x
+end
+
+
+function evaluate(f::PLSBespokeFunction, query::Array{T};
+        history::Union{PLSHistory{T}, Nothing}=nothing) where T <:AbstractFloat
+    @unpack f, pars = f
+    ft, J, σ²_f, σ²_J = f(query; pars...)
+    x = PLSEvaluation{T}(T(NaN), query, ft, T(NaN), σ²_f, T(NaN), J, σ²_J)
     !(history === nothing) && increment_eval!(history)
     return x
 end
 
+
 function (f::PLSBespokeFunction)(x; gradient=false)
     y, J, σ²_y, σ²_J = f.f(x; f.pars...)
     return gradient ? (y, J) : y
+end
+
+
+# function estimate_variance(f::PLSBespokeFunction, x::Array{T}) where T <: AbstractFloat
+#     y, J, σ²_y, σ²_J = f.f(x; f.pars...)
+#     return σ²_y, σ²_J
+# end
+
+
+function project_1d!(x::PLSEvaluation, search_direction)
+    x.∇y = search_direction' * x.J
+    x.σ²_∇ = (search_direction.^2)' * x.σ²_J
 end
 
 function Base.show(io::IO, x::PLSEvaluation)

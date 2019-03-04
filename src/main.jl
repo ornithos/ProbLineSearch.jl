@@ -1,24 +1,32 @@
 
-function probLineSearch(func::AbstractPLSFunction, x₀::Vector{T},
-        search_direction::Vector{T}, α₀::T; pars::PLSConstantParams{T}=PLSConstantParams(T)) where T <: AbstractFloat
+function probLineSearch(func::AbstractPLSFunction, x₀::Vector{T}, α₀::T;
+        search_direction::Union{Nothing, Vector{T}}=nothing,
+        σ²_f::Union{Nothing, T}=nothing,
+        σ²_J::Union{Nothing, T, Array{T}}=nothing,
+        pars::PLSConstantParams{T}=PLSConstantParams(T),
+        history::PLSHistory=PLSHistory(T)) where T <: AbstractFloat
 
-    search = PLSSearchDefn(T, x₀, T(0), α₀, search_direction)
-    x0 = evaluate(func, T(0), search, normalise=false)
+    # Setup general x0 (no projection onto line yet)
+    x0 = evaluate(func, x₀; history=history)
 
-    history = PLSHistory(T)
-    history.recording = true
-    push!(history.evals, 1)
+    # Get line search direction (if not specified)
+    (search_direction === nothing) && (search_direction = -x0.J)
 
+    # Project onto line
+    project_1d!(x0, search_direction)  # project gradient from Jacobian, and gradient variance.
+
+    # User specified variances
+    !(σ²_f === nothing) && (x0.σ²_f = σ²_f)
+    !(σ²_J === nothing) && (x0.σ²_J = σ²_J)
+
+    # Set-up line search parameters
+    search = PLSSearchDefn(T, x₀, x0.y, α₀, search_direction, x0.σ²_f, x0.σ²_J)
+
+    # Run line search
     x, gp = probLineSearch(func, x0, search, pars=pars, history=history)
     return x, gp, search
 end
 
-# # x₀::Vector{T}
-# # f₀::T
-# α₀::T
-# search_direction::Vector{T}
-# extrap_amt::T = 1      # extrapolation amount
-# denom:  :T = 1
 
 function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search::PLSSearchDefn{T};
         pars::PLSConstantParams{T}=PLSConstantParams(T), history::PLSHistory{T}=PLSHistory(T)) where T <: AbstractFloat
@@ -27,7 +35,7 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
     @unpack niter, c1, c2, wolfeThresh, verbosity = pars
 
     # Need to learn normalisation factor from x0, then store for rest of proc.
-    norm∇_0    = norm(x0.∇y)
+    norm∇_0    = abs(x0.∇y)
     if !isapprox(norm∇_0, 1.0)
         search.denom = norm∇_0   # magnitude for rescaling: |y′(0)|
         search.x₀ = x0.x
@@ -37,7 +45,10 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
         !isapprox(search.denom, 1.0) && (@warn "Perhaps x0 has been pre-normalised; and norm factor in searchpars≈1.0. This may cause problems.")
     end
 
-    gp = PLSPosterior(zeros(T, 1), zeros(T, 1), [x0.∇y], x0.σ²_f, x0.σ²_∇) # T, Y, ∇Y, ΣY, Σ∇
+    σ²_f, σ²_∇ = normalised_fun_var(search)
+    # @show sqrt(σ²_f)
+    # @show sqrt(σ²_∇)
+    gp = PLSPosterior(zeros(T, 1), zeros(T, 1), [x0.∇y], σ²_f, σ²_∇) # T, Y, ∇Y, ΣY, Σ∇
 
     iterates = [x0]
 
@@ -48,9 +59,14 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
                             Evaluate chosen point.
          =====================================================================#
         x = evaluate(func, tt, search; history=history)
+        @show x.x
         push!(iterates, x)
 
         gp = update(gp, x)
+        # @show gp.Ts
+        # @show gp.Y
+        # @show gp.∇Y
+        probWolfe(gp, tt, c1, c2)
         # -- check last evaluated point for acceptance ------------------------
         if probWolfe(gp, tt, c1, c2) > wolfeThresh   # are we done?
             display("bark1")
@@ -125,7 +141,7 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
 
         # -- CANDIDATES 2: one extrapolation step -----------------------------
         push!(Tcand, maximum(gp.Ts) + search.extrap_amt);
-        display(Tcand)
+        # display(Tcand)
         # display("before")
         # -- DISCRIMINATION: EI and ProbWolfe ---------------------------------
         # Calculate some statistics for EI.
@@ -143,9 +159,9 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
 
         # If best point is found using extrapolation, extend extrapolation for next iter.
         (idx_best == length(Tcand)) && (search.extrap_amt *= 2)
-        display(EIcand)
-        display(PPcand)
-        display("Chosen value: $idx_best")
+        # display(EIcand)
+        # display(PPcand)
+        # display("Chosen value: $idx_best")
         # Next point chosen for evaluation (next iter!):
         tt = Tcand[idx_best];
 
@@ -164,7 +180,7 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
         display("bark5")
         push!(history.msg, "found acceptable point. (3).")
         finalise(x, gp, search, pars, history);
-        return x # done  => x.x, x.y, x.J, x.∇_J, search.α₀, history.ewma_α
+        return x, gp # done  => x.x, x.y, x.J, x.∇_J, search.α₀, history.ewma_α
     end
 
     # -- return point with lowest mean ----------------------------------------
@@ -175,8 +191,13 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
     push!(history.msg, "reached evaluation limit. Returning 'best' known point.")
     x = iterates[minj]
     finalise(x, gp, search, pars, history);
-    return x
+    return x, gp
 
+
+    # tt = Tsort[argmin(m.(gp, Tsort[wolfes_ix]))]  # choose point with smallest post. mean.
+    # minj = findfirst(gp.Ts .== tt)
+    # x = iterates[minj]
+    # finalise(x, gp, search, pars, history)
     # makePlot();
 end
 
@@ -208,6 +229,10 @@ function finalise(x::PLSEvaluation{T}, post::PLSPosterior{T}, searchpars::PLSSea
 
     # reset for next iter: any extrapolation should be baked into α₀
     searchpars.extrap_amt = 1
+
+    # update noise according to x
+    searchpars.σ²_f = x.σ²_f
+    searchpars.σ²_J = x.σ²_J
 
     # reset NEXT initial step size to average step size if accepted step
     # size is 100 times smaller or larger than average step size

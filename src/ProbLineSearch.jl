@@ -34,6 +34,23 @@ using ArgCheck, Parameters, Formatting
 
 
 """
+Example usage:
+```julia
+x, gp, search = PLS.probLineSearch(plsfun, x₀, 0.01)
+xs = [PLS.evaluate(plsfun, x₀), x]; gps = [[],gp];
+for i in 1:20
+    search.search_direction = -x.J
+    PLS.project_1d!(x, search.search_direction)
+    x, gp = PLS.probLineSearch(plsfun, x, search)
+    push!(xs, copy(x))
+    push!(gps, gp)
+end
+```
+
+"""
+
+
+"""
 Statistics of accepted step sizes and number of func evals
 example usage: PLSHistory(Float32, 10)
 """
@@ -73,17 +90,20 @@ PLSConstantParams(T::Type) = PLSConstantParams{T}()
 """
 Definition of the line search: the starting point, the direction etc.
 """
-@with_kw mutable struct PLSSearchDefn{T<:AbstractFloat}
+mutable struct PLSSearchDefn{T<:AbstractFloat}
     x₀::Vector{T}
     f₀::T
     α₀::T
     search_direction::Vector{T}
-    extrap_amt::T = 1      # extrapolation amount
-    denom::T = 1               # magnitude |y′(0)| => Divisor for normalisation
+    σ²_f::T                # assumed var of f
+    σ²_J::Vector{T}        # assumed var of Jf (Jacobian)
+    extrap_amt::T          # extrapolation amount
+    denom::T               # magnitude |y′(0)| => Divisor for normalisation
 end
-PLSSearchDefn(T::Type, x₀, y₀, α₀, search_direction) = PLSSearchDefn{T}(x₀=x₀, f₀=y₀, α₀=α₀, search_direction=search_direction)
-PLSSearchDefn(x₀, y₀, α₀, search_direction) = PLSSearchDefn(Float64, x₀, y₀, α₀, search_direction)
+PLSSearchDefn(T::Type, args...) = PLSSearchDefn{T}(args..., T(1), T(1))
+var∇1d(x::PLSSearchDefn) = (x.search_direction.^2)' * x.σ²_J
 
+Base.copy(x::PLSSearchDefn) = PLSSearchDefn([deepcopy(getfield(x, nm)) for nm in fieldnames(PLSSearchDefn)]...)
 
 
 
