@@ -59,7 +59,7 @@ dddk(a,b) = -(a<=b);
 m(gp::PLSPosterior, t::Vector)   = let Ts = gp.Ts; [k.(t, Ts')    kd.(t,  Ts')  ] * gp.A; end
 d1m(gp::PLSPosterior, t::Vector) = let Ts = gp.Ts; [dk.(t, Ts')   dkd.(t,  Ts') ] * gp.A; end
 d2m(gp::PLSPosterior, t::Vector) = let Ts = gp.Ts; [ddk.(t, Ts')  ddkd.(t,  Ts')] * gp.A; end
-d3m(gp::PLSPosterior{T}, t::Vector) where T <: AbstractFloat = let Ts = gp.Ts; [dddk.(t, Ts')  zeros(T, 1, N)] * gp.A; end
+d3m(gp::PLSPosterior{T}, t::Vector) where T <: AbstractFloat = let Ts = gp.Ts; [dddk.(t, Ts')  zeros(T, length(t), length(Ts))] * gp.A; end
 
 # posterior marginal covariance between function and first derivative
 Σ(gp::PLSPosterior, t::Vector)   = let Ts = gp.Ts; k.(t,t')   - ([k.(t, Ts')   kd.(t, Ts') ] * (gp.G \ [k.(t, Ts')   kd.(t, Ts') ]')); end
@@ -71,6 +71,7 @@ Vd(gp::PLSPosterior, t::Vector) = diag(Σd(gp, t))
 dVd(gp::PLSPosterior, t::Vector) = diag(dΣd(gp, t))
 
 # covariance terms with function (derivative) values at origin
+# TODO: vectorised versions (d>1) do not work! (dimensions must match)
 Σ0f(gp::PLSPosterior, t::Vector)   = let Ts = gp.Ts; k.(0,t)   - ([k.(0, Ts')   kd.(0, Ts') ] * (gp.G \ [k.(t, Ts')   kd.(t, Ts') ]')); end
 Σd0f(gp::PLSPosterior, t::Vector)  = let Ts = gp.Ts; dk.(0,t)  - ([dk.(0, Ts')  dkd.(0, Ts')] * (gp.G \ [k.(t, Ts')   kd.(t, Ts') ]')); end
 Σ0df(gp::PLSPosterior, t::Vector)  = let Ts = gp.Ts; kd.(0,t)  - ([k.(0, Ts')   kd.(0, Ts') ] * (gp.G \ [dk.(t, Ts')  dkd.(t, Ts')]')); end
@@ -85,7 +86,7 @@ Vd0df(gp::PLSPosterior, t::Vector) = diag(Σd0df(gp, t))
 m(gp::PLSPosterior, t::Real) = m(gp, [t]) |> arr2sc
 d1m(gp::PLSPosterior, t::Real) = d1m(gp, [t]) |> arr2sc
 d2m(gp::PLSPosterior, t::Real) = d2m(gp, [t]) |> arr2sc
-d3m(gp::PLSPosterior, t::Real) = d2m(gp, [t]) |> arr2sc
+d3m(gp::PLSPosterior, t::Real) = d3m(gp, [t]) |> arr2sc
 V(gp::PLSPosterior, t::Real) = Σ(gp, [t]) |> arr2sc
 Vd(gp::PLSPosterior, t::Real) = Σd(gp, [t]) |> arr2sc
 dVd(gp::PLSPosterior, t::Real) = dΣd(gp, [t]) |> arr2sc

@@ -30,7 +30,7 @@ function normalise_for_linesearch!(x::PLSEvaluation{T}, searchpars::PLSSearchDef
     #       x <-- x/α, then ∇y <-- ∇y / α, but *[NOT y <-- y/α]*
     =#
     y, ∇y = normalise_for_linesearch(x.y, x.∇y, f₀, denom, α₀)
-    σ²_f, σ²_∇ = normalise_for_linesearch(x.σ²_f, x.σ²_∇, T(0), denom^2, α₀)
+    σ²_f, σ²_∇ = normalise_for_linesearch(x.σ²_f, x.σ²_∇, T(0), denom^2, α₀^2)
     x.y, x.∇y = y, ∇y
     x.σ²_f, x.σ²_∇ = σ²_f, σ²_∇
 end
@@ -63,17 +63,23 @@ abstract type AbstractPLSFunction end
 
 struct PLSBespokeFunction <: AbstractPLSFunction
     f::Function
-    pars::Any
+    pars::Dict
 end
+PLSBespokeFunction(f::Function) = PLSBespokeFunction(f, Dict())
+
+
+#= TODO: splatting a kwargs instead of args adds ≈1μs per call. Check at some point
+         what the overall runtime is, and whether it is worth optimising this. =#
 
 #= TODO: add use of optimiser to change search direction, e.g. ADAM/Adadelta/Nesterov etc. =#
+
 
 function evaluate(f::PLSBespokeFunction, t::T, searchpars::PLSSearchDefn{T};
         history::Union{PLSHistory{T}, Nothing}=nothing, normalise::Bool=true) where T <:AbstractFloat
     @unpack x₀ ,α₀, search_direction = searchpars
     @unpack f, pars = f
     query = x₀ + α₀*t*search_direction
-    ft, J, σ²_f, σ²_J = f(query, pars...)
+    ft, J, σ²_f, σ²_J = f(query; pars...)
     # Project onto 1D line (search direction), and renormalise.
     ∇f, σ²_∇ = search_direction' * J, (search_direction.^2)' * σ²_J  # project
     x = PLSEvaluation{T}(t, query, ft, ∇f, σ²_f, σ²_∇, J, σ²_J)
@@ -83,7 +89,7 @@ function evaluate(f::PLSBespokeFunction, t::T, searchpars::PLSSearchDefn{T};
 end
 
 function (f::PLSBespokeFunction)(x; gradient=false)
-    y, J, σ²_y, σ²_J = f.f(x, f.pars)
+    y, J, σ²_y, σ²_J = f.f(x; f.pars...)
     return gradient ? (y, J) : y
 end
 

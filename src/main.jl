@@ -13,6 +13,12 @@ function probLineSearch(func::AbstractPLSFunction, x₀::Vector{T},
     return x, gp, search
 end
 
+# # x₀::Vector{T}
+# # f₀::T
+# α₀::T
+# search_direction::Vector{T}
+# extrap_amt::T = 1      # extrapolation amount
+# denom:  :T = 1
 
 function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search::PLSSearchDefn{T};
         pars::PLSConstantParams{T}=PLSConstantParams(T), history::PLSHistory{T}=PLSHistory(T)) where T <: AbstractFloat
@@ -65,7 +71,7 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
             push!(history.msg, "found a point with almost zero gradient. Stopping, although Wolfe conditions not guaranteed.")
             x = iterates[minj]
             finalise(x, gp, search, pars, history)
-            return x
+            return x, gp
         end
 
         # -------------- Wolfe Conditions satisfied? --------------------------
@@ -77,11 +83,11 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
         if !isempty(wolfes_ix)
             display("bark3")
             push!(history.msg, "found acceptable point. (2).")
-            tt = Tsort[argmin(m(gp, Tsort[wolfes_ix]))]  # choose point with smallest post. mean.
+            tt = Tsort[argmin(m.(gp, Tsort[wolfes_ix]))]  # choose point with smallest post. mean.
             minj = findfirst(gp.Ts .== tt)
             x = iterates[minj]
             finalise(x, gp, search, pars, history)
-            return x;
+            return x, gp;
         end
 
         #======================================================================
