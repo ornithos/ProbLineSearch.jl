@@ -65,8 +65,9 @@ example usage: PLSHistory(Float32, 10)
     Wolfe::Vector{T} = []              # Wolfe probability at acceptance
     msg::Vector{String} = []   # Description of acceptance reason
 end
-PLSHistory(T::Type) = PLSHistory{T}()
-PLSHistory() = PLSHistory(Float64)
+PLSHistory(α₀::T) where T <: AbstractFloat = PLSHistory{T}(ewma_α=α₀)
+PLSHistory(T::Type; kwargs...) = PLSHistory{T}(;kwargs...)
+PLSHistory() = PLSHistory{Float64}()
 
 Base.length(x::PLSHistory) = length(x.evals)
 increment_eval!(x::PLSHistory) = x.recording ? x.evals[end] += 1 : (push!(x.evals, 1); x.recording=true);
@@ -112,5 +113,9 @@ include("./posteriorgp.jl")
 include("./utils.jl")
 # include("./plot.jl")
 include("./main.jl")
+
+
+export PLSHistory, PLSConstantParams, PLSSearchDefn, PLSPosterior, PLSEvaluation
+export PLSBespokeFunction
 
 end # module

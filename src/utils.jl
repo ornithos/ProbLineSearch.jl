@@ -64,7 +64,7 @@ function cubicMinimum(Post::PLSPosterior{T}, t::T) where T <: AbstractFloat
     c = d1mt - d2mt * t + 2 \ d3mt * t^2;
 
     if abs(d3mt) < 1e-9 # essentially a quadratic. Single extremum
-        return - (d1mt - ts * d2mt) / d2mt;
+        return - (d1mt - t * d2mt) / d2mt;
     end
 
     # compute the two possible roots:

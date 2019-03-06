@@ -4,7 +4,7 @@ function probLineSearch(func::AbstractPLSFunction, x₀::Vector{T}, α₀::T;
         σ²_f::Union{Nothing, T}=nothing,
         σ²_J::Union{Nothing, T, Array{T}}=nothing,
         pars::PLSConstantParams{T}=PLSConstantParams(T),
-        history::PLSHistory=PLSHistory(T)) where T <: AbstractFloat
+        history::PLSHistory=PLSHistory(α₀)) where T <: AbstractFloat
 
     # Setup general x0 (no projection onto line yet)
     x0 = evaluate(func, x₀; history=history)
@@ -24,7 +24,7 @@ function probLineSearch(func::AbstractPLSFunction, x₀::Vector{T}, α₀::T;
 
     # Run line search
     x, gp = probLineSearch(func, x0, search, pars=pars, history=history)
-    return x, gp, search
+    return x, gp, search, history
 end
 
 
@@ -33,6 +33,9 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
 
     @unpack α₀, search_direction, denom = search
     @unpack niter, c1, c2, wolfeThresh, verbosity = pars
+
+    # project current evaluation onto the search direction specified.
+    project_1d!(x0, search.search_direction)
 
     # Need to learn normalisation factor from x0, then store for rest of proc.
     norm∇_0    = abs(x0.∇y)
@@ -59,7 +62,7 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
                             Evaluate chosen point.
          =====================================================================#
         x = evaluate(func, tt, search; history=history)
-        @show x.x
+        # @show x.x
         push!(iterates, x)
 
         gp = update(gp, x)
@@ -69,7 +72,7 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
         probWolfe(gp, tt, c1, c2)
         # -- check last evaluated point for acceptance ------------------------
         if probWolfe(gp, tt, c1, c2) > wolfeThresh   # are we done?
-            display("bark1")
+            # display("bark1")
             push!(history.msg, "found acceptable point. (1).")
             finalise(x, gp, search, pars, history);
             return x, gp # done  => x.x, x.y, x.J, x.∇_J, search.α₀, history.ewma_α
@@ -83,7 +86,7 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
 
         # -------------- ∇ ≈ 0 with high probability? -------------------------
         if abs(min∇) < 1e-5 && Vd(gp, minT) < 1e-4 # nearly deterministic
-            display("bark2")
+            # display("bark2")
             push!(history.msg, "found a point with almost zero gradient. Stopping, although Wolfe conditions not guaranteed.")
             x = iterates[minj]
             finalise(x, gp, search, pars, history)
@@ -97,7 +100,7 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
 
 
         if !isempty(wolfes_ix)
-            display("bark3")
+            # display("bark3")
             push!(history.msg, "found acceptable point. (2).")
             tt = Tsort[argmin(m.(gp, Tsort[wolfes_ix]))]  # choose point with smallest post. mean.
             minj = findfirst(gp.Ts .== tt)
@@ -128,13 +131,15 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
                it is possible that (assuming the search direction is ok) the scale
                is wrong, so return a point v. close to original, and reduce α₀.=#
            elseif cell==1 && d1m(gp, 0) > 0
-               display("bark4")
+               # display("bark4")
                 push!(history.msg, "function seems very steep, reevaluating close to start.")
-                # tt = 0.01 * (Tsort[cell] + Tsort[cell+1]);  => Can lead to oscillation if T[1] is too far away.
-                x = iterates[1]
+                tt = 0.01 * (Tsort[cell] + Tsort[cell+1]);  # => Can lead to oscillation if T[1] is too far away.
+                # x = iterates[1]
+                x = evaluate(func, tt, search; history=history)
+                # @show x.x
                 finalise(x, gp, search, pars, history)
-                search.α₀ /= 10
-                history.ewma_α /= 5
+                # search.α₀ /= 10
+                # history.ewma_α /= 5
                 return x, gp  # done
             end
         end
@@ -172,12 +177,13 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
         !!! Not found an acceptable candidate in the niter limit.
      =====================================================================#
     x = evaluate(func, tt, search, history=history)
+    # @show x.x
     push!(iterates, x)
     gp = update(gp, x)
 
     # -- check last evaluated point for acceptance ------------------------
     if probWolfe(gp, tt, c1, c2) > wolfeThresh   # are we done?
-        display("bark5")
+        # display("bark5")
         push!(history.msg, "found acceptable point. (3).")
         finalise(x, gp, search, pars, history);
         return x, gp # done  => x.x, x.y, x.J, x.∇_J, search.α₀, history.ewma_α
@@ -186,7 +192,7 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
     # -- return point with lowest mean ----------------------------------------
     # Code of Mahsereci and Hennig exclude t=0 from this, but I'm not sure I buy this.
     minM, minT, minj  = min_mean(gp)
-    display("bark6")
+    # display("bark6")
     (verbosity > 0) && @warn "reached evaluation limit. Returning 'best' known point."
     push!(history.msg, "reached evaluation limit. Returning 'best' known point.")
     x = iterates[minj]
@@ -236,8 +242,9 @@ function finalise(x::PLSEvaluation{T}, post::PLSPosterior{T}, searchpars::PLSSea
 
     # reset NEXT initial step size to average step size if accepted step
     # size is 100 times smaller or larger than average step size
-    if (searchpars.α₀ > 1e2 * history.ewma_α)||(searchpars.α₀ < 1e-2 * history.ewma_α)
-        (verbosity > 0) && println("v large/small value of α, resetting alpha0. To avoid cycling, ensure passing PLSHistory object through.")
+    if !(1e-2 * history.ewma_α < α < 1e2 * history.ewma_α)
+        push!(history.msg, "v large/small value of α, resetting alpha0.")
+        (verbosity > 0) && @warn "v large/small value of α, resetting alpha0. To avoid cycling, ensure passing PLSHistory object through."
         searchpars.α₀ = history.ewma_α # reset step size
     end
 
