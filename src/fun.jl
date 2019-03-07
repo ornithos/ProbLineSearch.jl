@@ -82,6 +82,7 @@ function evaluate(f::PLSBespokeFunction, t::T, searchpars::PLSSearchDefn{T};
         history::Union{PLSHistory{T}, Nothing}=nothing, normalise::Bool=true) where T <:AbstractFloat
     @unpack x₀ ,α₀, search_direction = searchpars
     query = x₀ + α₀*t*search_direction
+    # @show query
     x = evaluate(f, query, history=history)
     x.t = t
     project_1d!(x, search_direction)

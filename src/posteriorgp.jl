@@ -72,15 +72,15 @@ dVd(gp::PLSPosterior, t::Vector) = diag(dΣd(gp, t))
 
 # covariance terms with function (derivative) values at origin
 # TODO: vectorised versions (d>1) do not work! (dimensions must match)
-Σ0f(gp::PLSPosterior, t::Vector)   = let Ts = gp.Ts; k.(0,t)   - ([k.(0, Ts')   kd.(0, Ts') ] * (gp.G \ [k.(t, Ts')   kd.(t, Ts') ]')); end
-Σd0f(gp::PLSPosterior, t::Vector)  = let Ts = gp.Ts; dk.(0,t)  - ([dk.(0, Ts')  dkd.(0, Ts')] * (gp.G \ [k.(t, Ts')   kd.(t, Ts') ]')); end
-Σ0df(gp::PLSPosterior, t::Vector)  = let Ts = gp.Ts; kd.(0,t)  - ([k.(0, Ts')   kd.(0, Ts') ] * (gp.G \ [dk.(t, Ts')  dkd.(t, Ts')]')); end
-Σd0df(gp::PLSPosterior, t::Vector) = let Ts = gp.Ts; dkd.(0,t) - ([dk.(0, Ts')  dkd.(0, Ts')] * (gp.G \ [dk.(t, Ts')  dkd.(t, Ts')]')); end
+Σ0f(gp::PLSPosterior, t::Vector{T}) where T <: Real  = let Ts = gp.Ts; T0 = T(0); k.(T0,t)   - ([k.(T0, Ts')   kd.(T0, Ts') ] * (gp.G \ [k.(t, Ts')   kd.(t, Ts') ]')); end
+Σd0f(gp::PLSPosterior, t::Vector{T}) where T <: Real  = let Ts = gp.Ts; T0 = T(0); dk.(T0,t)  - ([dk.(T0, Ts')  dkd.(T0, Ts')] * (gp.G \ [k.(t, Ts')   kd.(t, Ts') ]')); end
+Σ0df(gp::PLSPosterior, t::Vector{T}) where T <: Real  = let Ts = gp.Ts; T0 = T(0); kd.(T0,t)  - ([k.(T0, Ts')   kd.(T0, Ts') ] * (gp.G \ [dk.(t, Ts')  dkd.(t, Ts')]')); end
+Σd0df(gp::PLSPosterior, t::Vector{T}) where T <: Real = let Ts = gp.Ts; T0 = T(0); dkd.(T0,t) - ([dk.(T0, Ts')  dkd.(T0, Ts')] * (gp.G \ [dk.(t, Ts')  dkd.(t, Ts')]')); end
 
-V0f(gp::PLSPosterior, t::Vector) = diag(Σ0f(gp, t))
-Vd0f(gp::PLSPosterior, t::Vector) = diag(Σd0f(gp, t))
-V0df(gp::PLSPosterior, t::Vector) = diag(Σ0df(gp, t))
-Vd0df(gp::PLSPosterior, t::Vector) = diag(Σd0df(gp, t))
+V0f(gp::PLSPosterior, t::Vector{T}) where T <: Real = diag(Σ0f(gp, t))
+Vd0f(gp::PLSPosterior, t::Vector{T}) where T <: Real = diag(Σd0f(gp, t))
+V0df(gp::PLSPosterior, t::Vector{T}) where T <: Real = diag(Σ0df(gp, t))
+Vd0df(gp::PLSPosterior, t::Vector{T}) where T <: Real = diag(Σd0df(gp, t))
 
 # # ========================= SCALAR VERSIONS =============================
 m(gp::PLSPosterior, t::Real) = m(gp, [t]) |> arr2sc

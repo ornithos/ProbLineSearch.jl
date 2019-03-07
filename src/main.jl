@@ -119,7 +119,7 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
         Tcand = zeros(T, 0); # positions of candidate points
 
         for cell = 1:length(gp)-1 # loop over cells
-            _cellT_ϵ   = Tsort[cell] + 1e-6 * (Tsort[cell+1] - Tsort[cell]);
+            _cellT_ϵ   = Tsort[cell] + T(1e-6) * (Tsort[cell+1] - Tsort[cell]);
             cell_minT  = cubicMinimum(gp, _cellT_ϵ);
 
             # add point to candidate list if minimum lies in between T(cel) and T(cel+1)
@@ -133,7 +133,7 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
            elseif cell==1 && d1m(gp, 0) > 0
                # display("bark4")
                 push!(history.msg, "function seems very steep, reevaluating close to start.")
-                tt = 0.01 * (Tsort[cell] + Tsort[cell+1]);  # => Can lead to oscillation if T[1] is too far away.
+                tt = T(0.01) * (Tsort[cell] + Tsort[cell+1]);  # => Can lead to oscillation if T[1] is too far away.
                 # x = iterates[1]
                 x = evaluate(func, tt, search; history=history)
                 # @show x.x

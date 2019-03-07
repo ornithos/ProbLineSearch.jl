@@ -85,8 +85,8 @@ but are available here just in case.
     wolfeThresh::T = 0.3   # ≥ this prob reqd, for Wolfe conditions to hold
     αGrowth::T = 1.3       # amount to grow α₀ at each outer iteration.
 end
-PLSConstantParams(T::Type) = PLSConstantParams{T}()
-
+# PLSConstantParams(T::Type) = PLSConstantParams{T}()
+PLSConstantParams(T::Type; kwargs...) = PLSConstantParams{T}(;kwargs...)
 
 """
 Definition of the line search: the starting point, the direction etc.
@@ -117,5 +117,6 @@ include("./main.jl")
 
 export PLSHistory, PLSConstantParams, PLSSearchDefn, PLSPosterior, PLSEvaluation
 export PLSBespokeFunction
+export probLineSearch
 
 end # module
