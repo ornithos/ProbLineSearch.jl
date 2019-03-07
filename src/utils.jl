@@ -16,9 +16,10 @@ probWolfe(Post::PLSPosterior{T}, t::T, c1::T, c2::T) where T <: AbstractFloat = 
 
 
 # For lower precision arithmetic, we sometimes encounter small negative numbers
-tolerant_sqrt(x) = x < 0 ? 0 : sqrt(x)
-__sqrt(x::Float64) = sqrt(x)
-__sqrt(x::AbstractFloat) = tolerant_sqrt(x)
+# tolerant_sqrt(x) = x < 0 ? 0 : sqrt(x)
+__sqrt(x::Float64) = (-1e-9 < x < 0) ? 0 : sqrt(x)
+__sqrt(x::Float32) = (-1e-5 < x < 0) ? 0 : sqrt(x)
+__sqrt(x::Float16) = (-1e-1 < x < 0) ? 0 : sqrt(x)
 
 # probWolfe AND breakdown thereof
 function probWolfe_(Post::PLSPosterior{T}, t::T, c1::T, c2::T)  where T <: AbstractFloat
@@ -101,11 +102,10 @@ mutable struct OnlineVarianceVec{T<:AbstractFloat}
     n::Int
     μ::Vector{T}
     M2::Vector{T}
-    Δ₁::Vector{T}
 end
 
-OnlineVarianceVec(val::Vector{T}) where T <: AbstractFloat = OnlineVarianceVec{T}(1, val, zeros(T, length(val)), zeros(T, 1))
-OnlineVarianceVecInit(T::Type, N::Int) = OnlineVarianceVec{T}(0, zeros(T, N), zeros(T,N), zeros(T, 1))
+OnlineVarianceVec(val::Vector{T}) where T <: AbstractFloat = OnlineVarianceVec{T}(1, val, zeros(T, length(val)))
+OnlineVarianceVecInit(T::Type, N::Int) = OnlineVarianceVec{T}(0, zeros(T, N), zeros(T,N))
 
 function update!(x::OnlineVarianceVec{T}, val::Vector{T}) where T <: AbstractFloat
     x.n += 1

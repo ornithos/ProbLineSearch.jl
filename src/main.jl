@@ -36,6 +36,7 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
 
     # project current evaluation onto the search direction specified.
     project_1d!(x0, search.search_direction)
+    x0.t = 0
 
     # Need to learn normalisation factor from x0, then store for rest of proc.
     norm∇_0    = abs(x0.∇y)
@@ -102,7 +103,8 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
         if !isempty(wolfes_ix)
             # display("bark3")
             push!(history.msg, "found acceptable point. (2).")
-            tt = Tsort[argmin(m.(gp, Tsort[wolfes_ix]))]  # choose point with smallest post. mean.
+            smallest_wolfe = argmin(m.(gp, Tsort[wolfes_ix]))
+            tt = Tsort[wolfes_ix[smallest_wolfe]]  # choose point with smallest post. mean.
             minj = findfirst(gp.Ts .== tt)
             x = iterates[minj]
             finalise(x, gp, search, pars, history)
@@ -131,13 +133,14 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
                it is possible that (assuming the search direction is ok) the scale
                is wrong, so return a point v. close to original, and reduce α₀.=#
            elseif cell==1 && d1m(gp, 0) > 0
-               # display("bark4")
+               display("bark4")
                 push!(history.msg, "function seems very steep, reevaluating close to start.")
                 tt = T(0.01) * (Tsort[cell] + Tsort[cell+1]);  # => Can lead to oscillation if T[1] is too far away.
                 # x = iterates[1]
+                # tt = T(0)
                 x = evaluate(func, tt, search; history=history)
                 # @show x.x
-                finalise(x, gp, search, pars, history)
+                finalise(x, gp, search, pars, history) #; force_α= search.α₀ / 2)
                 # search.α₀ /= 10
                 # history.ewma_α /= 5
                 return x, gp  # done
@@ -151,7 +154,7 @@ function probLineSearch(func::AbstractPLSFunction, x0::PLSEvaluation{T}, search:
         # -- DISCRIMINATION: EI and ProbWolfe ---------------------------------
         # Calculate some statistics for EI.
         μs = m(gp, Tcand)         # means of candidate points
-        σs = sqrt.(V(gp, Tcand))   # s.d. of candidate points
+        σs = __sqrt.(V(gp, Tcand))   # s.d. of candidate points
         # display(μs)
         # display(σs)
         # display(minM)
@@ -213,44 +216,47 @@ end
 
 
 function finalise(x::PLSEvaluation{T}, post::PLSPosterior{T}, searchpars::PLSSearchDefn{T},
-        pars::PLSConstantParams, history::PLSHistory{T}) where T <: AbstractFloat
+        pars::PLSConstantParams, history::PLSHistory{T}; force_α::Union{T,Nothing}=nothing) where T <: AbstractFloat
     @unpack x₀ ,α₀, f₀, denom = searchpars
     @unpack αGrowth, verbosity, c1, c2 = pars
 
-    # chosen step size
-    α = x.t*α₀
-
-    # Transform back to original frame of reference / undo [0,1] normalisation.
+    # Transform `x` back to original frame of reference / undo [0,1] normalisation.
     invert_normalise_for_linesearch!(x, searchpars)
 
-    # set new step size
-    # next initial step size is αGrowth (def=1.3x) larger than last accepted step size
+    # save step size
+    α = x.t*α₀
     push!(history.αs, α)
-    searchpars.α₀ = α * αGrowth
+
+    # next initial step size is αGrowth (def=1.3x) larger than last accepted step size
+    searchpars.α₀ = something(force_α, α * αGrowth)
+    check_α = (force_α === nothing)  # if new alpha not forced by input arg
 
     # running average for reset in case the step size becomes very small
     # this is a safeguard
     gamma = 0.95;
-    history.ewma_α = gamma*history.ewma_α + (1-gamma)*α;
-
-    # reset for next iter: any extrapolation should be baked into α₀
-    searchpars.extrap_amt = 1
-
-    # update noise according to x
-    searchpars.σ²_f = x.σ²_f
-    searchpars.σ²_J = x.σ²_J
+    history.ewma_α = gamma*history.ewma_α + (1-gamma)*something(force_α, α);
 
     # reset NEXT initial step size to average step size if accepted step
     # size is 100 times smaller or larger than average step size
-    if !(1e-2 * history.ewma_α < α < 1e2 * history.ewma_α)
+    if check_α && !(1e-2 * history.ewma_α < α < 1e2 * history.ewma_α)
         push!(history.msg, "v large/small value of α, resetting alpha0.")
         (verbosity > 0) && @warn "v large/small value of α, resetting alpha0. To avoid cycling, ensure passing PLSHistory object through."
         searchpars.α₀ = history.ewma_α # reset step size
     end
 
+    # reset search parameters for next iteration
+    # --- any extrapolation should be baked into α₀
+    searchpars.extrap_amt = 1
+
+    # --- update noise according to x
+    searchpars.σ²_f = x.σ²_f
+    searchpars.σ²_J = x.σ²_J
+
+
+
     # Calculate acceptance statistics
     minM, _minT, _minj  = min_mean(post)   # of existing points
-    push!(history.EI, EI(m(post, x.t), sqrt(V(post, x.t)), minM))
+    push!(history.EI, EI(m(post, x.t), __sqrt(V(post, x.t)), minM))
     push!(history.Wolfe, probWolfe(post, x.t, c1, c2))
     history.recording = false
 end

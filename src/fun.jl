@@ -17,7 +17,7 @@ Base.eltype(x::PLSEvaluation{T}) where T <: AbstractFloat = T
 Base.copy(x::PLSEvaluation) = PLSEvaluation([deepcopy(getfield(x, nm)) for nm in fieldnames(PLSEvaluation)]...)
 
 
-@inline normalise_for_linesearch(f, ∇f, f₀, norm∇_0, α₀) = (f - f₀)/(α₀*norm∇_0),  ∇f/norm∇_0
+@inline normalise_for_linesearch(f, ∇f, f₀, norm∇_0, α₀) = (f - f₀)/(α₀*norm∇_0),  ∇f/(norm∇_0)
 @inline invert_normalise_for_linesearch(f, ∇f, f₀, norm∇_0, α₀) = f*(α₀*norm∇_0) + f₀,  ∇f*norm∇_0
 
 function normalise_for_linesearch!(x::PLSEvaluation{T}, searchpars::PLSSearchDefn{T}) where T <: AbstractFloat
